@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Juego de Recolección con Niveles y Jefes</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js"></script>
+    <style>
+      body, html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      var config = {
+          type: Phaser.AUTO,
+          width: window.innerWidth,  // Ajustar a la pantalla del dispositivo
+          height: window.innerHeight, // Ajustar a la pantalla del dispositivo
+          physics: {
+              default: 'arcade',
+              arcade: {
+                  gravity: { y: 300 },
+                  debug: false
+              }
+          },
+          scene: {
+              preload: preload,
+              create: create,
+              update: update
+          }
+      };
+
+      var player;
+      var stars;
+      var bombs;
+      var bosses;
+      var platforms;
+      var cursors;
+      var score = 0;
+      var scoreText;
+      var healthText;
+      var currentLevel = 1;
+      var playerHealth = 3;
+      var isBossActive = false;
+      var bossHealth = 5;
+      var boss;
+      var nextLevelText;
+
+      var game = new Phaser.Game(config);
+
+      function preload() {
+          this.load.image('sky', 'sprites/sky.png');
+          this.load.image('ground', 'sprites/ground.png');
+          this.load.image('star', 'sprites/star.png');
+          this.load.image('bomb', 'sprites/bomb.png');
+          this.load.spritesheet('dude', 
+              'sprites/dude.png',
+              { frameWidth: 32, frameHeight: 48 }
+          );
+          this.load.spritesheet('boss', 'sprites/boss.png', { frameWidth: 32, frameHeight: 48 }); // Sprite del jefe final
+      }
+
+      function create() {
+          // Fondo del juego
+          this.add.image(window.innerWidth / 2, window.innerHeight / 2, 'sky').setDisplaySize(window.innerWidth, window.innerHeight);
+
+          // Plataformas
+          platforms = this.physics.add.staticGroup();
+          platforms.create(700, window.innerHeight - 32, 'ground').setScale(3).refreshBody();  
+          platforms.create(400, 300, 'ground');
+          platforms.create(50, 450, 'ground');
+          platforms.create(750, 420, 'ground');
+
+          // Jugador
+          player = this.physics.add.sprite(100, window.innerHeight - 150, 'dude');
+          player.setBounce(0.2);
+          player.setCollideWorldBounds(true);
+
+          this.anims.create({
+              key: 'left',
+              frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
+              frameRate: 10,
+              repeat: -1
+          });
+
+          this.anims.create({
+              key: 'turn',
+              frames: [ { key: 'dude', frame: 4 } ],
+              frameRate: 20
+          });
+
+          this.anims.create({
+              key: 'right',
+              frames: this.anims.generateFrameNumbers('dude', { start: 5, end: 8 }),
+              frameRate: 10,
+              repeat: -1
+          });
+
+          // Estrellas
+          stars = this.physics.add.group({
+              key: 'star',
+              repeat: 3,
+              setXY: { x: 12, y: 0, stepX: 70 }
+          });
+
+          stars.children.iterate(function (child) {
+              child.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
+          });
+
+          // Bombas y Jefes
+          bombs = this.physics.add.group();
+          bosses = this.physics.add.group();
+
+          // Puntuación
+          scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#000' });
+          healthText = this.add.text(16, 50, 'Health: ' + playerHealth, { fontSize: '32px', fill: '#ff0000' });
+          nextLevelText = this.add.text(window.innerWidth / 2 - 100, window.innerHeight / 2, '', { fontSize: '32px', fill: '#00ff00' }).setVisible(false);
+
+          // Colisiones
+          this.physics.add.collider(player, platforms);
+          this.physics.add.collider(stars, platforms);
+          this.physics.add.collider(bombs, platforms);
+
+          this.physics.add.overlap(player, stars, collectStar, null, this);
+          this.physics.add.collider(player, bombs, hitBomb, null, this);
+          this.physics.add.collider(player, bosses, bossAttack, null, this);
+
+          cursors = this.input.keyboard.createCursorKeys();
+      }
+
+      function update() {
+          // Movimiento del jugador
+          if (cursors.left.isDown) {
+              player.setVelocityX(-160);
+              player.anims.play('left', true);
+          }
+          else if (cursors.right.isDown) {
+              player.setVelocityX(160);
+              player.anims.play('right', true);
+          }
+          else {
+              player.setVelocityX(0);
+              player.anims.play('turn');
+          }
+
+          if (cursors.up.isDown && player.body.touching.down) {
+              player.setVelocityY(-330);
+          }
+
+          if (isBossActive) {
+              // Movimiento básico del jefe
+              if (boss.body.velocity.x === 0) {
+                  boss.setVelocityX(100);
+              }
+              if (boss.x > window.innerWidth - 100 || boss.x < 100) {
+                  boss.setVelocityX(boss.body.velocity.x * -1);
+              }
+          }
+      }
+
+      function collectStar(player, star) {
+          star.disableBody(true, true);
+
+          score += 10;
+          scoreText.setText('Score: ' + score);
+
+          if (stars.countActive(true) === 0) {
+              if (!isBossActive) {
+                  spawnBoss(this);  // Aparecer el jefe cuando se recojan todas las estrellas
+              }
+          }
+      }
+
+      function spawnBoss(scene) {
+          // Aparecer el jefe final
+          boss = scene.physics.add.sprite(window.innerWidth / 2, window.innerHeight / 2, 'boss');
+          boss.setCollideWorldBounds(true);
+          boss.setBounce(1);
+          boss.setVelocityX(100);
+          boss.setScale(2.5); // Hacer al jefe más grande
+          isBossActive = true;
+      }
+
+      function hitBomb(player, bomb) {
+          this.physics.pause();
+          player.setTint(0xff0000);
+          player.anims.play('turn');
+      }
+
+      function bossAttack(player, boss) {
+          // El jefe ataca al jugador y le quita vida
+          playerHealth -= 1;
+          healthText.setText('Health: ' + playerHealth);
+
+          if (playerHealth <= 0) {
+              this.physics.pause();
+              player.setTint(0xff0000);
+              player.anims.play('turn');
+          }
+
+          // Reducir la vida del jefe
+          bossHealth -= 1;
+
+          if (bossHealth <= 0) {
+              boss.disableBody(true, true);
+              isBossActive = false;
+              currentLevel++;
+              nextLevelText.setText('Level ' + currentLevel + ' Complete!').setVisible(true);
+              setTimeout(() => {
+                  nextLevelText.setVisible(false);
+                  goToNextLevel(this);  // Pasar al siguiente nivel
+              }, 2000);
+          }
+      }
+
+      function goToNextLevel(scene) {
+          // Resetear el nivel y los elementos del juego
+          bossHealth = 5;
+          playerHealth = 3;
+          healthText.setText('Health: ' + playerHealth);
+
+          // Reiniciar las estrellas para el próximo nivel
+          stars.children.iterate(function (child) {
+              child.enableBody(true, child.x, 0, true, true);
+          });
+
+          bombs.clear(true, true);  // Limpiar bombas
+      }
+    </script>
+  </body>
+</html>
