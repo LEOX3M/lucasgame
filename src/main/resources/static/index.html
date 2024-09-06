@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Juego de Recolección con Niveles y Jefes</title>
+    <title>Juego con Jefes y Ataques Especiales</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js"></script>
     <style>
@@ -17,12 +17,12 @@
     <script>
       var config = {
           type: Phaser.AUTO,
-          width: window.innerWidth,  // Ajustar a la pantalla del dispositivo
-          height: window.innerHeight, // Ajustar a la pantalla del dispositivo
+          width: window.innerWidth,
+          height: window.innerHeight,
           physics: {
               default: 'arcade',
               arcade: {
-                  gravity: { y: 300 },
+                  gravity: { y: 350 },
                   debug: false
               }
           },
@@ -35,19 +35,27 @@
 
       var player;
       var stars;
-      var bombs;
       var bosses;
       var platforms;
       var cursors;
       var score = 0;
       var scoreText;
       var healthText;
+      var bossHealthText;  // Mostrar la vida del jefe
       var currentLevel = 1;
-      var playerHealth = 3;
+      var playerHealth = 200;
       var isBossActive = false;
-      var bossHealth = 5;
+      var bossHealth = 11;  // Vida del jefe
       var boss;
       var nextLevelText;
+      var projectiles;  // Proyectiles del jefe
+      var fireRate = 2000;  // Tasa de disparo de proyectiles
+      var lastFired = 0;
+      var playerProjectiles;  // Proyectiles del jugador
+      var canShoot = true;
+
+      // Sonidos
+      var shootSound, hitLucas, hitBoss, explosionSound;
 
       var game = new Phaser.Game(config);
 
@@ -55,12 +63,16 @@
           this.load.image('sky', 'sprites/sky.png');
           this.load.image('ground', 'sprites/ground.png');
           this.load.image('star', 'sprites/star.png');
-          this.load.image('bomb', 'sprites/bomb.png');
-          this.load.spritesheet('dude', 
-              'sprites/dude.png',
-              { frameWidth: 32, frameHeight: 48 }
-          );
-          this.load.spritesheet('boss', 'sprites/boss.png', { frameWidth: 32, frameHeight: 48 }); // Sprite del jefe final
+          this.load.spritesheet('dude', 'sprites/dude.png', { frameWidth: 32, frameHeight: 48 });
+          this.load.spritesheet('boss', 'sprites/boss.png', { frameWidth: 32, frameHeight: 48 });
+          this.load.image('projectile', 'sprites/projectile.png'); // Proyectil del jefe
+          this.load.image('playerProjectile', 'sprites/player-projectile.png'); // Proyectil del jugador
+
+          // Cargar sonidos
+          this.load.audio('shootSound', 'sounds/shoot.mp3');
+          this.load.audio('hitLucas', 'sounds/hit-lucas.mp3');
+          this.load.audio('hitBoss', 'sounds/hit-boss.mp3');
+          this.load.audio('explosionSound', 'sounds/explosion.mp3');
       }
 
       function create() {
@@ -69,10 +81,16 @@
 
           // Plataformas
           platforms = this.physics.add.staticGroup();
-          platforms.create(700, window.innerHeight - 32, 'ground').setScale(3).refreshBody();  
-          platforms.create(400, 300, 'ground');
-          platforms.create(50, 450, 'ground');
-          platforms.create(750, 420, 'ground');
+          platforms.create(1150, window.innerHeight - 64, 'ground');
+          platforms.create(700, window.innerHeight - 16, 'ground');
+          platforms.create(250, window.innerHeight - 64, 'ground');
+          
+          platforms.create(1150, 180, 'ground'); //arriba
+          platforms.create(50, 380, 'ground'); //arriba
+          
+          platforms.create(650, 500, 'ground');
+          
+          platforms.create(850, 300, 'ground');
 
           // Jugador
           player = this.physics.add.sprite(100, window.innerHeight - 150, 'dude');
@@ -98,11 +116,11 @@
               frameRate: 10,
               repeat: -1
           });
-
+        
           // Estrellas
           stars = this.physics.add.group({
               key: 'star',
-              repeat: 3,
+              repeat: 14,
               setXY: { x: 12, y: 0, stepX: 70 }
           });
 
@@ -110,56 +128,87 @@
               child.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
           });
 
-          // Bombas y Jefes
-          bombs = this.physics.add.group();
+          // Grupo de proyectiles del jefe
+          projectiles = this.physics.add.group();
+          this.physics.add.collider(projectiles, platforms, destroyProjectile, null, this);
+          this.physics.add.collider(projectiles, player , projectileHitPlayer, null, this);
+
+          // Grupo de proyectiles del jugador
+          playerProjectiles = this.physics.add.group();
+          this.physics.add.collider(playerProjectiles, platforms, destroyProjectile, null, this);
+          
+
+          //Jefes
           bosses = this.physics.add.group();
 
-          // Puntuación
+          // Puntuación y salud
           scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#000' });
           healthText = this.add.text(16, 50, 'Health: ' + playerHealth, { fontSize: '32px', fill: '#ff0000' });
+          bossHealthText = this.add.text(window.innerWidth - 400, 16, 'Boss Health: ' + bossHealth, { fontSize: '32px', fill: '#ff0000' });  // Mostrar la vida del jefe
           nextLevelText = this.add.text(window.innerWidth / 2 - 100, window.innerHeight / 2, '', { fontSize: '32px', fill: '#00ff00' }).setVisible(false);
 
           // Colisiones
           this.physics.add.collider(player, platforms);
           this.physics.add.collider(stars, platforms);
-          this.physics.add.collider(bombs, platforms);
+          this.physics.add.collider(bosses, platforms);
 
           this.physics.add.overlap(player, stars, collectStar, null, this);
-          this.physics.add.collider(player, bombs, hitBomb, null, this);
+          this.physics.add.collider(bosses, playerProjectiles, playerProjectileHitBoss, null, this);
           this.physics.add.collider(player, bosses, bossAttack, null, this);
+
+          // Cargar sonidos
+          shootSound = this.sound.add('shootSound');
+          hitLucas = this.sound.add('hitLucas');
+          hitBoss = this.sound.add('hitBoss');
+          explosionSound = this.sound.add('explosionSound');
 
           cursors = this.input.keyboard.createCursorKeys();
       }
 
-      function update() {
-          // Movimiento del jugador
-          if (cursors.left.isDown) {
-              player.setVelocityX(-160);
-              player.anims.play('left', true);
-          }
-          else if (cursors.right.isDown) {
-              player.setVelocityX(160);
-              player.anims.play('right', true);
-          }
-          else {
-              player.setVelocityX(0);
-              player.anims.play('turn');
-          }
+      function update(time) {
+    // Movimiento del jugador
+    if (cursors.left.isDown) {
+        player.setVelocityX(-260);
+        player.anims.play('left', true);
+    }
+    else if (cursors.right.isDown) {
+        player.setVelocityX(260);
+        player.anims.play('right', true);
+    }
+    else {
+        player.setVelocityX(0);
+        player.anims.play('turn');
+    }
 
-          if (cursors.up.isDown && player.body.touching.down) {
-              player.setVelocityY(-330);
-          }
+    if (cursors.up.isDown && player.body.touching.down) {
+        player.setVelocityY(-330);
+    }
 
-          if (isBossActive) {
-              // Movimiento básico del jefe
-              if (boss.body.velocity.x === 0) {
-                  boss.setVelocityX(100);
-              }
-              if (boss.x > window.innerWidth - 100 || boss.x < 100) {
-                  boss.setVelocityX(boss.body.velocity.x * -1);
-              }
-          }
-      }
+    // El jugador puede disparar con la tecla espacio
+    if (Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)) && canShoot) {
+        firePlayerProjectile(this);
+        canShoot = false;
+        setTimeout(() => canShoot = true, 500);  // Tiempo de espera entre disparos
+    }
+
+    if (isBossActive) {
+        // Movimiento básico del jefe
+        if (boss.body.velocity.x === 0) {
+            boss.setVelocityX(10);
+        }
+
+        // Hacer que el jefe salte más frecuentemente si está tocando el suelo
+        if (boss.body.touching.down && Phaser.Math.Between(0, 100) < 20) {
+            boss.setVelocityY(-400);  // Hacer que el jefe salte más fuerte
+        }
+
+        // Jefe dispara proyectiles cada cierto tiempo
+        if (time > lastFired) {
+            fireProjectile(this);
+            lastFired = time + fireRate; // Actualizar la tasa de disparo
+        }
+    }
+}
 
       function collectStar(player, star) {
           star.disableBody(true, true);
@@ -177,18 +226,14 @@
       function spawnBoss(scene) {
           // Aparecer el jefe final
           boss = scene.physics.add.sprite(window.innerWidth / 2, window.innerHeight / 2, 'boss');
+          bosses.add(boss);
+          
           boss.setCollideWorldBounds(true);
           boss.setBounce(1);
           boss.setVelocityX(100);
-          boss.setScale(2.5); // Hacer al jefe más grande
           isBossActive = true;
       }
 
-      function hitBomb(player, bomb) {
-          this.physics.pause();
-          player.setTint(0xff0000);
-          player.anims.play('turn');
-      }
 
       function bossAttack(player, boss) {
           // El jefe ataca al jugador y le quita vida
@@ -203,8 +248,10 @@
 
           // Reducir la vida del jefe
           bossHealth -= 1;
+          bossHealthText.setText('Boss Health: ' + bossHealth);
 
           if (bossHealth <= 0) {
+              explosionSound.play();
               boss.disableBody(true, true);
               isBossActive = false;
               currentLevel++;
@@ -216,18 +263,81 @@
           }
       }
 
+      // Función para disparar proyectiles desde el jefe hacia el jugador
+      function fireProjectile(scene) {
+          var projectile = scene.physics.add.image(boss.x, boss.y, 'projectile');
+          projectiles.add(projectile);
+
+          // Hacer que el proyectil siga al jugador
+          scene.physics.moveToObject(projectile, player, 200);
+
+          // Reproducir sonido de disparo
+          shootSound.play();
+      }
+
+      function firePlayerProjectile(scene) {
+		if(isBossActive){
+	          var playerProjectile = scene.physics.add.image(player.x, player.y, 'playerProjectile');
+	          playerProjectiles.add(playerProjectile);
+	
+	          // Hacer que el proyectil siga al jefe
+	          scene.physics.moveToObject(playerProjectile, boss, 300);
+	
+	          // Reproducir sonido de disparo del jugador
+	          shootSound.play();
+          }
+      }
+
+      function destroyProjectile(projectile) {
+          projectile.destroy();  // Destruir proyectil al colisionar
+      }
+
+      // Impacto del proyectil del jugador en el jefe
+      function playerProjectileHitBoss(boss, playerProjectile) {
+          playerProjectile.destroy();
+          bossHealth -= 1;  // Reducir la vida del jefe
+          bossHealthText.setText('Boss Health: ' + bossHealth);  // Actualizar la vida del jefe
+
+          hitBoss.play();  // Reproducir sonido de impacto
+
+          if (bossHealth <= 0) {
+				isBossActive = false;
+              explosionSound.play();  // Reproducir sonido de explosión
+             	boss.disableBody(true, true);  // Jefe derrotado
+              boss.destroy();
+              nextLevelText.setText('Level ' + currentLevel + ' Complete!').setVisible(true);
+              setTimeout(() => {
+                  nextLevelText.setVisible(false);
+                  goToNextLevel(this);  // Pasar al siguiente nivel
+              }, 2000);
+          }
+      }
+
+      function projectileHitPlayer(player, projectile) {
+          projectile.destroy();
+          playerHealth -= 1;
+          healthText.setText('Health: ' + playerHealth);
+          hitLucas.play();  // Reproducir sonido de impacto
+
+          if (playerHealth <= 0) {
+              this.physics.pause();
+              player.setTint(0xff0000);
+              player.anims.play('turn');
+          }
+      }
+
       function goToNextLevel(scene) {
           // Resetear el nivel y los elementos del juego
-          bossHealth = 5;
-          playerHealth = 3;
+          bossHealth = 1;  // Reiniciar la vida del jefe
+          playerHealth = 23;
           healthText.setText('Health: ' + playerHealth);
+          bossHealthText.setText('Boss Health: ' + bossHealth);
 
           // Reiniciar las estrellas para el próximo nivel
           stars.children.iterate(function (child) {
               child.enableBody(true, child.x, 0, true, true);
           });
 
-          bombs.clear(true, true);  // Limpiar bombas
       }
     </script>
   </body>
