@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Juego con Jefes y Ataques Especiales</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js"></script>
+    <style>
+      body, html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #000;
+      }
+      /* For on-screen mobile controls */
+      .mobile-controls {
+        position: absolute;
+        bottom: 10px;
+        width: 100%;
+        display: flex;
+        justify-content: space-around;
+      }
+      .mobile-button {
+        background: rgba(255, 255, 255, 0.5);
+        border: 1px solid #fff;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 50px;
+        font-size: 24px;
+        color: black;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      var selectedCharacter = 'lucas'; 
+      var player, platforms, cursors, scoreText, healthText, bossHealthText, nextLevelText;
+      var stars, projectiles, playerProjectiles, bosses;
+      var score = 0, playerHealth = 1, bossHealth = 2;
+      var isBossActive = false, fireRate = 2000, lastFired = 0, canShoot = true, isPlayerActive = true;
+      var currentLevel = 1;
+      var isMobile = Phaser.Device.OS.android || Phaser.Device.OS.iOS;
+
+      // Sonidos
+      var shootSound, hitLucas, hitBoss, explosionSound, starSound;
+
+      class MenuScene extends Phaser.Scene {
+        // No changes needed here for mobile/desktop compatibility
+      }
+
+      class GameScene extends Phaser.Scene {
+        constructor() {
+          super({ key: 'GameScene' });
+        }
+
+        preload() {
+          this.load.image('sky', 'sprites/sky.png');
+          // Load other assets
+        }
+
+        create() {
+          this.add.image(window.innerWidth / 2, window.innerHeight / 2, 'sky').setDisplaySize(window.innerWidth, window.innerHeight);
+          
+          platforms = this.physics.add.staticGroup();
+          platforms.create(1150, window.innerHeight - 64, 'ground');
+          // Additional platforms
+
+          // Create player based on the character selection
+          player = this.physics.add.sprite(100, window.innerHeight - 150, selectedCharacter);
+
+          player.setBounce(0.2);
+          player.setCollideWorldBounds(true);
+
+          // Add touch controls if it's a mobile device
+          if (isMobile) {
+            this.createMobileControls();
+          }
+
+          cursors = this.input.keyboard.createCursorKeys();
+
+          stars = this.physics.add.group();
+          projectiles = this.physics.add.group();
+          playerProjectiles = this.physics.add.group();
+          bosses = this.physics.add.group();
+
+          scoreText = this.add.text(16, 16, 'Puntaje: 0', { fontSize: '32px', fill: '#000' });
+          healthText = this.add.text(16, 50, 'Vida: ' + playerHealth, { fontSize: '32px', fill: '#ff0000' });
+
+          this.physics.add.collider(player, platforms);
+        }
+
+        update(time) {
+          if (isPlayerActive) {
+            // Desktop Controls
+            if (!isMobile) {
+              if (cursors.left.isDown) {
+                player.setVelocityX(-260);
+              } else if (cursors.right.isDown) {
+                player.setVelocityX(260);
+              } else {
+                player.setVelocityX(0);
+              }
+
+              if (cursors.up.isDown && player.body.touching.down) {
+                player.setVelocityY(-330);
+              }
+
+              if (Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)) && canShoot) {
+                firePlayerProjectile(this);
+                canShoot = false;
+                setTimeout(() => canShoot = true, 500);
+              }
+            }
+          }
+        }
+
+        createMobileControls() {
+          // Create touch buttons for left, right, jump, and shoot
+          let controlsDiv = document.createElement('div');
+          controlsDiv.classList.add('mobile-controls');
+
+          let leftButton = this.createButton('←');
+          let rightButton = this.createButton('→');
+          let jumpButton = this.createButton('↑');
+          let shootButton = this.createButton('⎵'); // Space symbol for shooting
+
+          // Add button listeners for movement and actions
+          leftButton.addEventListener('touchstart', () => player.setVelocityX(-260));
+          rightButton.addEventListener('touchstart', () => player.setVelocityX(260));
+          jumpButton.addEventListener('touchstart', () => {
+            if (player.body.touching.down) {
+              player.setVelocityY(-330);
+            }
+          });
+          shootButton.addEventListener('touchstart', () => {
+            if (canShoot) {
+              firePlayerProjectile(this);
+              canShoot = false;
+              setTimeout(() => canShoot = true, 500);
+            }
+          });
+
+          controlsDiv.appendChild(leftButton);
+          controlsDiv.appendChild(rightButton);
+          controlsDiv.appendChild(jumpButton);
+          controlsDiv.appendChild(shootButton);
+
+          document.body.appendChild(controlsDiv);
+        }
+
+        createButton(label) {
+          let button = document.createElement('div');
+          button.classList.add('mobile-button');
+          button.innerText = label;
+          return button;
+        }
+      }
+
+      // Rest of your game logic remains unchanged
+      function firePlayerProjectile(scene) {
+        if (isBossActive) {
+          let playerProjectile = scene.physics.add.image(player.x, player.y, 'playerProjectile');
+          playerProjectiles.add(playerProjectile);
+          scene.physics.moveToObject(playerProjectile, boss, 300);
+          shootSound.play();
+        }
+      }
+
+      var config = {
+        type: Phaser.AUTO,
+        width: window.innerWidth,
+        height: window.innerHeight,
+        physics: {
+          default: 'arcade',
+          arcade: {
+            gravity: { y: 350 },
+            debug: false
+          }
+        },
+        scene: [MenuScene, GameScene]
+      };
+
+      var game = new Phaser.Game(config);
+    </script>
+  </body>
+</html>
