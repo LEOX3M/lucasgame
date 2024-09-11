@@ -84,7 +84,7 @@ class Nivel1 extends Phaser.Scene {
           //Estrellas
           stars = this.physics.add.group({
             key: 'star',
-            repeat: 1,
+            repeat: 30,
             setXY: { x: player.x +100, y: 0, stepX: Phaser.Math.Between(10, 250) }
           });
 
@@ -383,7 +383,7 @@ class Nivel1 extends Phaser.Scene {
               });
             */
            console.log(this);
-             this.parent.scene.start('SelectPlayer');
+             //this.parent.scene.start('SelectPlayer');
         }
     }
 
