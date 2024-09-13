@@ -1,6 +1,4 @@
 class SelectPlayer extends Phaser.Scene {
-
-    
     constructor () {
       super({ key: 'SelectPlayer' });
     }

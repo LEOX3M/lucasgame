@@ -4,26 +4,6 @@
     <title>Juego con Jefes y Ataques Especiales</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js"></script>
-
-    <script>
-      var selectedCharacter = 'lucas'; // Por defecto, se selecciona Lucas
-      var player, platforms, cursors, scoreText, healthText, bossHealthText, nextLevelText;
-      var stars, projectiles, playerProjectiles, bosses;
-
-      var score = 0, playerHealth = 12, bossHealth = 2;
-      var isBossActive = false, fireRate = 1000, lastFired = 0, canShoot = true, isPlayerActive = true;
-      var currentLevel = 1;
-
-      var camera;
-
-      // Sonidos
-      var shootSound, hitLucas, hitBoss, explosionSound, starSound;
-
-    </script>
-
-    <script src="src/nivel1.js"></script>
-    <script src="src/selectPlayer.js"></script>
-    <script src="src/game.js"></script>
     <style>
       body, html {
         margin: 0;
@@ -35,5 +15,18 @@
   </head>
   <body>
     <div id="lucasgame"></div>
+
+    <script src="src/CharacterSelectorScene.js"></script>
+    <script src="src/BaseLevel.js"></script>
+    <script src="src/Level1.js"></script>
+    <script src="src/Level2.js"></script>
+    <script src="src/Level3.js"></script>
+    <script src="src/BossLevel.js"></script>
+    <script src="src/GameOverScene.js"></script>
+    <script src="src/utils/HUD.js"></script>
+    <script src="src/sprite/Enemy.js"></script>
+    <script src="src/sprite/Player.js"></script>
+    <script src="src/config.js"></script>
+
   </body>
 </html>

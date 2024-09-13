@@ -33,8 +33,15 @@ class Nivel1 extends Phaser.Scene {
 
         layer.setCollision([16,15,14,13,22,21,27,28,40]);
 
+        this.score = 0;  // Initialize score
+
         //Cursor
         cursors = this.input.keyboard.createCursorKeys();
+
+        // Allow saving the game manually by pressing 'S'
+        this.input.keyboard.on('keydown-S', () => {
+          saveGame('Nivel1', this.score);
+        });
 
         //Player
         player = this.physics.add.sprite(0, 0, 'lucas').setBounce(0.2).setCollideWorldBounds(true).setScale(0.7);
@@ -84,7 +91,7 @@ class Nivel1 extends Phaser.Scene {
           //Estrellas
           stars = this.physics.add.group({
             key: 'star',
-            repeat: 30,
+            repeat: 2,
             setXY: { x: player.x +100, y: 0, stepX: Phaser.Math.Between(10, 250) }
           });
 
@@ -364,7 +371,7 @@ class Nivel1 extends Phaser.Scene {
         if (playerHealth <= 0) {
             isPlayerActive = false;
             isBossActive = false;
-            //this.physics.resume();
+            this.physics.world.pause();
             player.setTint(0xff0000);
             player.anims.play('turn');
 
